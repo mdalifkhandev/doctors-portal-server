@@ -68,6 +68,152 @@ async function run() {
             res.send(resualt);
           });
 
+          app.get("/bookings", veryfyjwt, async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const user = await userscullection.findOne(query);
+            if (!user?.role) {
+              const resualt = await bookingscullection.find(query).toArray();
+              res.send(resualt);
+            } else {
+              const querys = {};
+              const resualt = await bookingscullection.find(querys).toArray();
+              res.send(resualt);
+            }
+          });
+      
+          app.get("/bookings/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const resualt = await bookingscullection.findOne(query);
+            res.send(resualt);
+          });
+          app.post("/bookings", async (req, res) => {
+            const booking = req.body;
+            const query = {
+              appointmentdate: booking.appointmentdate,
+              tretnmentname: booking.tretnmentname,
+              email: booking.email,
+            };
+            const alradybooked = await bookingscullection.find(query).toArray();
+            console.log(alradybooked);
+            if (alradybooked.length) {
+              const message = `You already have a booking on ${booking.appointmentdate}`;
+              return res.send({ acknowledged: false, message });
+            }
+      
+            const resualt = await bookingscullection.insertOne(booking);
+            res.send(resualt);
+          });
+      
+          app.post("/create-payment-intent", async (req, res) => {
+            const booking = req.body;
+            const price = booking.price;
+            const amount = price * 100;
+            const paymentIntent = await stripe.paymentIntents.create({
+              amount: amount,
+              currency: "usd",
+              automatic_payment_methods: {
+                enabled: true,
+              },
+            });
+            res.send({
+              clientSecret: paymentIntent.client_secret,
+            });
+          });
+      
+          app.post("/payments", async (req, res) => {
+            const payment = req.body
+            console.log(payment);
+            const resualt = await paymentcullection.insertOne(payment)
+            const id = payment.bookingId
+            const filter = { _id: new ObjectId(id) }
+            const updatedDoc = {
+              $set: {
+                paid: true,
+                transactionId: payment.transactionId
+              }
+            }
+            const updatedResult = await bookingscullection.updateOne(filter, updatedDoc)
+            res.send(resualt)
+          })
+      
+          app.get("/jwt", async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const user = await userscullection.findOne(query);
+            if (user) {
+              const token = jwt.sign({ email }, process.env.TOKEN, {
+                expiresIn: "1h",
+              });
+              return res.send({ accessToken: token });
+            }
+            console.log(user);
+            res.status(403).send({ accessToken: "" });
+          });
+      
+          app.get("/users/admin/:email", async (req, res) => {
+            const email = req.params.email;
+            const query = { email };
+            const user = await userscullection.findOne(query);
+            res.send({ isAdmin: user?.role === "admin" });
+          });
+      
+          app.put("/users/admin/:id", veryfyjwt, async (req, res) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await userscullection.findOne(query);
+            console.log(user, decodedEmail);
+            if (user?.role !== "admin") {
+              return res.status(401).send({ message: "forbiden access" });
+            }
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const option = { upsert: true };
+            const updatedoc = {
+              $set: {
+                role: "admin",
+              },
+            };
+            const resualt = await userscullection.updateOne(
+              filter,
+              updatedoc,
+              option
+            );
+            res.send(resualt);
+          });
+      
+          //adfadf
+      
+          app.post("/users", async (req, res) => {
+            const user = req.body;
+            const resualt = await userscullection.insertOne(user);
+            console.log(resualt);
+            res.send(resualt);
+          });
+          app.get("/users", async (req, res) => {
+            const query = {};
+            const resualt = await userscullection.find(query).toArray();
+            res.send(resualt);
+          });
+      
+          app.post("/doctors", async (req, res) => {
+            const doctor = req.body;
+            const resualt = await doctorscullection.insertOne(doctor);
+            res.send(resualt);
+          });
+          app.get("/doctors", async (req, res) => {
+            const query = {};
+            const resualt = await doctorscullection.find(query).toArray();
+            res.send(resualt);
+          });
+          app.delete("/doctors/:id", veryfyjwt, async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const resualt = await doctorscullection.deleteOne(filter);
+            res.send(resualt);
+          });
+
 
     } finally {
 
